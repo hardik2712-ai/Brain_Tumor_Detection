@@ -51,13 +51,23 @@ st.markdown("""
     .positive-result {
         background-color: #ffebee;
         border-left: 5px solid #f44336;
-        color: #d32f2f;
+        color: #b71c1c;
     }
+
+    .positive-result h3, .positive-result h4, .positive-result p, .positive-result strong {
+        color: #b71c1c !important;
+    }
+    
     .negative-result {
         background-color: #e8f5e8;
         border-left: 5px solid #4caf50;
-        color: #2e7d32;
+        color: #1b5e20;
     }
+
+    .negative-result h3, .negative-result h4, .negative-result p, .negative-result strong {
+        color: #1b5e20 !important;
+    }
+    
     .info-box {
         background-color: #f8f9fa;
         padding: 1rem;
