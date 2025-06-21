@@ -16,153 +16,13 @@ import tempfile
 import requests
 import time
 
-
-
-# Alternative Solution 1: Using Hugging Face Hub (Recommended)
-# First, upload your model to Hugging Face Hub.
-
+# Hugging Face Hub integration
 from huggingface_hub import hf_hub_download
-import os
-
-@st.cache_resource
-def load_model_from_huggingface():
-    """Load model from Hugging Face Hub - More reliable than Google Drive"""
-    try:
-        # Replace with your actual Hugging Face model repository
-        # Example: "your-username/brain-tumor-model"
-        model_path = hf_hub_download(
-            repo_id="hardik2712-ai/brain-tumor-detection-model",
-            filename="brain_tumor_model.h5",
-            cache_dir="./model_cache"
-        )
-        
-        model = load_model(model_path)
-        st.success("✅ Model loaded from Hugging Face!")
-        return model
-        
-    except Exception as e:
-        st.error(f"❌ Error loading from Hugging Face: {str(e)}")
-        return None
-
-# Alternative Solution 2: Using GitHub Releases
-# @st.cache_resource
-# def load_model_from_github():
-#     """Load model from GitHub releases"""
-#     try:
-#         # Replace with your GitHub repository and release info
-#         github_url = "https://github.com/YOUR_USERNAME/YOUR_REPO/releases/download/v1.0/brain_tumor_model.h5"
-#         model_path = "brain_tumor_model.h5"
-        
-#         if not os.path.exists(model_path):
-#             st.info("Downloading model from GitHub...")
-#             response = requests.get(github_url, stream=True)
-            
-#             if response.status_code == 200:
-#                 with open(model_path, 'wb') as f:
-#                     for chunk in response.iter_content(chunk_size=8192):
-#                         if chunk:
-#                             f.write(chunk)
-#             else:
-#                 raise Exception(f"Failed to download: HTTP {response.status_code}")
-        
-#         model = load_model(model_path)
-#         st.success(" Model loaded from GitHub!")
-#         return model
-        
-#     except Exception as e:
-#         st.error(f"Error loading from GitHub: {str(e)}")
-#         return None
-
-# # Alternative Solution 3: Using Dropbox
-# @st.cache_resource
-# def load_model_from_dropbox():
-#     """Load model from Dropbox direct link"""
-#     try:
-#         # Replace with your Dropbox direct link
-#         # Make sure to use the direct download link (dl=1 parameter)
-#         dropbox_url = "https://www.dropbox.com/s/YOUR_FILE_ID/brain_tumor_model.h5?dl=1"
-#         model_path = "brain_tumor_model.h5"
-        
-#         if not os.path.exists(model_path):
-#             st.info("⬇️ Downloading model from Dropbox...")
-#             response = requests.get(dropbox_url, stream=True)
-            
-#             if response.status_code == 200:
-#                 with open(model_path, 'wb') as f:
-#                     for chunk in response.iter_content(chunk_size=8192):
-#                         if chunk:
-#                             f.write(chunk)
-#             else:
-#                 raise Exception(f"Failed to download: HTTP {response.status_code}")
-        
-#         model = load_model(model_path)
-#         st.success(" Model loaded from Dropbox!")
-#         return model
-        
-#     except Exception as e:
-#         st.error(f" Error loading from Dropbox: {str(e)}")
-#         return None
-
-# # Alternative Solution 4: Fix Google Drive sharing settings
-# def fix_google_drive_download(file_id, destination):
-#     """
-#     Enhanced Google Drive download with proper sharing link handling
-    
-#     IMPORTANT: Make sure your Google Drive file sharing is set to:
-#     1. Anyone with the link can view
-#     2. No restrictions
-#     """
-    
-#     def download_file_from_google_drive_fixed(id, destination):
-#         def get_confirm_token(response):
-#             for key, value in response.cookies.items():
-#                 if key.startswith('download_warning'):
-#                     return value
-#             return None
-
-#         def save_response_content(response, destination):
-#             CHUNK_SIZE = 32768
-#             with open(destination, "wb") as f:
-#                 for chunk in response.iter_content(CHUNK_SIZE):
-#                     if chunk:
-#                         f.write(chunk)
-
-#         URL = "https://docs.google.com/uc?export=download"
-        
-#         session = requests.Session()
-#         response = session.get(URL, params={'id': id}, stream=True)
-#         token = get_confirm_token(response)
-
-#         if token:
-#             params = {'id': id, 'confirm': token}
-#             response = session.get(URL, params=params, stream=True)
-
-#         save_response_content(response, destination)
-#         return os.path.exists(destination) and os.path.getsize(destination) > 1024*1024
-
-#     try:
-#         success = download_file_from_google_drive_fixed(file_id, destination)
-#         return success
-#     except Exception as e:
-#         st.error(f"Google Drive download error: {str(e)}")
-#         return False
-
-
-
-
-
-# Only import gdown if available
-try:
-    import gdown
-    GDOWN_AVAILABLE = True
-except ImportError:
-    GDOWN_AVAILABLE = False
-    st.warning("⚠️ gdown module not available. Using alternative download method.")
 
 # Page configuration
 st.set_page_config(
     page_title="Brain Tumor Detection System",
-    page_icon="🧠",
+    page_icon=" ",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -244,148 +104,56 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-def download_file_from_google_drive(file_id, destination):
-    """Download file from Google Drive with enhanced error handling"""
-    
-    def get_confirm_token(response):
-        """Extract confirmation token from Google Drive response"""
-        for key, value in response.cookies.items():
-            if key.startswith('download_warning'):
-                return value
-        return None
-    
-    def save_response_content(response, destination):
-        """Save streaming response content to file"""
-        CHUNK_SIZE = 32768
-        with open(destination, "wb") as f:
-            for chunk in response.iter_content(CHUNK_SIZE):
-                if chunk:
-                    f.write(chunk)
-    
-    # Method 1: Using gdown with fuzzy parameter
-    if GDOWN_AVAILABLE:
-        try:
-            st.info("🔄 Attempting download with gdown...")
-            # Use fuzzy parameter to handle large files
-            gdown.download(f"https://drive.google.com/uc?id={file_id}", 
-                          destination, quiet=False, fuzzy=True)
-            if os.path.exists(destination) and os.path.getsize(destination) > 1024*1024:
-                st.success("✅ Downloaded successfully with gdown!")
-                return True
-        except Exception as e:
-            st.warning(f"gdown method failed: {str(e)}")
-            if os.path.exists(destination):
-                os.remove(destination)
-    
-    # Method 2: Enhanced requests method with session handling
-    try:
-        st.info("🔄 Attempting download with requests...")
-        URL = "https://docs.google.com/uc?export=download"
-        
-        session = requests.Session()
-        
-        response = session.get(URL, params={'id': file_id}, stream=True)
-        token = get_confirm_token(response)
-        
-        if token:
-            params = {'id': file_id, 'confirm': token}
-            response = session.get(URL, params=params, stream=True)
-        
-        # Check if response is HTML (error page) or binary (actual file)
-        content_type = response.headers.get('content-type', '')
-        if 'text/html' in content_type:
-            # Try alternative URL format
-            st.info("🔄 Trying alternative download URL...")
-            alt_url = f"https://drive.google.com/u/0/uc?id={file_id}&export=download&confirm=t"
-            response = session.get(alt_url, stream=True)
-        
-        if response.status_code == 200:
-            save_response_content(response, destination)
-            
-            # Verify the downloaded file
-            if os.path.exists(destination):
-                file_size = os.path.getsize(destination)
-                st.info(f"📁 Downloaded file size: {file_size / (1024*1024):.2f} MB")
-                
-                if file_size > 1024*1024:  # At least 1MB
-                    # Check if it's not an HTML error page
-                    with open(destination, 'rb') as f:
-                        first_bytes = f.read(100)
-                        if b'<html' not in first_bytes.lower() and b'<!doctype' not in first_bytes.lower():
-                            st.success("✅ File downloaded and verified!")
-                            return True
-                        else:
-                            st.error("❌ Downloaded file is HTML (error page)")
-                            os.remove(destination)
-                else:
-                    st.error(f"❌ Downloaded file too small ({file_size} bytes)")
-                    os.remove(destination)
-        else:
-            st.error(f"❌ HTTP Error: {response.status_code}")
-            
-    except Exception as e:
-        st.error(f"❌ Enhanced download failed: {str(e)}")
-        if os.path.exists(destination):
-            os.remove(destination)
-    
-    return False
-
-# Enhanced model loading function
 @st.cache_resource
 def load_brain_tumor_model():
-    """Load the brain tumor detection model with multiple fallback methods"""
-    
-    file_id = "1EPL1P53QVTI8qqC0oZjnJqXXghStKVBQ"
-    model_path = "brain_tumor_model.h5"
-    
+    """Load model from Hugging Face Hub"""
     try:
-        # Check if model already exists locally
-        if os.path.exists(model_path):
-            st.info("📂 Found existing model file. Loading...")
-            model = load_model(model_path)
-            st.success("✅ Model loaded successfully!")
-            return model
-        
-        # Download the model
-        st.info("⬇️ Downloading model from Google Drive...")
+        st.info(" Loading model from Hugging Face Hub...")
         progress_bar = st.progress(0)
         
-        # Update progress bar
-        for i in range(30):
-            time.sleep(0.1)
-            progress_bar.progress((i + 1) / 100)
+        # Update progress
+        progress_bar.progress(20)
         
-        download_success = download_file_from_google_drive(file_id, model_path)
+        # Download model from Hugging Face Hub
+        model_path = hf_hub_download(
+            repo_id="hardik2712-ai/brain-tumor-detection-model",
+            filename="brain_tumor_model.h5",
+            cache_dir="./model_cache"
+        )
         
-        if download_success and os.path.exists(model_path):
-            progress_bar.progress(70)
-            st.info("🔄 Loading downloaded model...")
-            
-            # Verify file size (should be > 1MB for a valid model)
+        progress_bar.progress(60)
+        st.info("Model downloaded successfully. Loading into memory...")
+        
+        # Load the model
+        model = load_model(model_path)
+        
+        progress_bar.progress(100)
+        
+        # Get model file size for display
+        if os.path.exists(model_path):
             file_size = os.path.getsize(model_path)
-            if file_size < 1024 * 1024:  # Less than 1MB
-                st.error("❌ Downloaded file appears to be corrupted (too small)")
-                os.remove(model_path)
-                return None
-            
-            model = load_model(model_path)
-            progress_bar.progress(100)
-            st.success(f"✅ Model loaded successfully! (Size: {file_size / (1024*1024):.1f} MB)")
-            return model
+            st.success(f"Model loaded successfully from Hugging Face! (Size: {file_size / (1024*1024):.1f} MB)")
         else:
-            st.error("❌ Failed to download model file")
-            return None
-            
-    except Exception as e:
-        st.error(f"❌ Error loading model: {str(e)}")
+            st.success("Model loaded successfully from Hugging Face!")
         
-        # Provide helpful debugging information
+        return model
+        
+    except Exception as e:
+        st.error(f"Error loading model from Hugging Face: {str(e)}")
+        
+        # Provide detailed error information
         st.error(f"""
-        **Debugging Information:**
-        - Current working directory: {os.getcwd()}
-        - Files in directory: {os.listdir('.')}
-        - Model path exists: {os.path.exists(model_path)}
-        - gdown available: {GDOWN_AVAILABLE}
+        **Troubleshooting Information:**
+        - Error Type: {type(e).__name__}
+        - Error Message: {str(e)}
+        
+        **Possible Solutions:**
+        1. Check your internet connection
+        2. Verify the Hugging Face model repository exists and is public
+        3. Try refreshing the page
+        4. Check if you have sufficient disk space
+        
+        **Model Repository:** hardik2712-ai/brain-tumor-detection-model
         """)
         
         return None
@@ -440,7 +208,7 @@ def predict_tumor(model, img_array):
 # Main app
 def main():
     # Header
-    st.markdown('<h1 class="main-header">🧠 Brain Tumor Detection System</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">Brain Tumor Detection System</h1>', unsafe_allow_html=True)
     
     # Sidebar
     st.sidebar.title("Navigation")
@@ -463,7 +231,7 @@ def show_home_page():
     with col1:
         st.markdown("""
         <div class="info-box">
-        <h3>🎯 Our Mission</h3>
+        <h3>Our Mission</h3>
         <p>To provide accurate and efficient brain tumor detection using advanced machine learning technology, 
         helping medical professionals make informed decisions quickly.</p>
         </div>
@@ -471,65 +239,65 @@ def show_home_page():
         
         st.markdown("""
         <div class="info-box">
-        <h3>🔬 Technology</h3>
+        <h3>Technology</h3>
         <p>Our system uses deep learning algorithms trained on thousands of brain MRI images to detect 
-        various types of brain tumors with high accuracy.</p>
+        various types of brain tumors with high accuracy. The model is hosted on Hugging Face Hub for reliable access.</p>
         </div>
         """, unsafe_allow_html=True)
     
     with col2:
         st.markdown("""
         <div class="info-box">
-        <h3>⚡ Features</h3>
+        <h3>Features</h3>
         <ul>
         <li>Fast and accurate detection</li>
         <li>Support for multiple image formats</li>
         <li>Detailed confidence scores</li>
         <li>User-friendly interface</li>
-        <li>Secure and private</li>
+        <li>Secure model hosting via Hugging Face</li>
         </ul>
         </div>
         """, unsafe_allow_html=True)
         
         st.markdown("""
         <div class="info-box">
-        <h3>📊 Performance</h3>
+        <h3>Performance</h3>
         <p>Our model achieves high accuracy on validation datasets and continues to improve with 
-        ongoing research and development.</p>
+        ongoing research and development. Model is reliably served from Hugging Face Hub.</p>
         </div>
         """, unsafe_allow_html=True)
 
 def show_detection_page():
     st.markdown('<h2 class="sub-header">🔍 Brain Tumor Detection</h2>', unsafe_allow_html=True)
     
-    # Load model with progress indication
-    st.info("🔄 Initializing model... Please wait.")
+    # Load model from Hugging Face
+    st.info("Initializing model from Hugging Face Hub... Please wait.")
     model = load_brain_tumor_model()
     
     if model is None:
         st.error("""
-        ❌ **Model Loading Failed**
+        **Model Loading Failed**
         
-        This could be due to:
+        The model could not be loaded from Hugging Face Hub. This could be due to:
         - Network connectivity issues
-        - Google Drive access restrictions
-        - Model file corruption
-        - Insufficient permissions
+        - Hugging Face Hub service issues
+        - Model repository access problems
+        - Insufficient disk space for caching
         
         **Troubleshooting:**
         1. Check your internet connection
         2. Try refreshing the page
-        3. Ensure the Google Drive file is publicly accessible
-        4. Contact support if the issue persists
+        3. Verify the model repository is accessible: [hardik2712-ai/brain-tumor-detection-model](https://huggingface.co/hardik2712-ai/brain-tumor-detection-model)
+        4. Clear browser cache and try again
+        5. Contact support if the issue persists
         """)
         
-        # Provide manual download option
+        # Provide link to the model repository
         st.markdown("""
-        ### Manual Setup Option:
-        If the automatic download fails, you can:
-        1. Download the model manually from: [Google Drive Link](https://drive.google.com/file/d/1EPL1P53QVTI8qqC0oZjnJqXXghStKVBQ/view?usp=drive_link)
-        2. Save it as `brain_tumor_model.h5` in your project directory
-        3. Restart the application
+        ### Model Repository:
+        The model is hosted at: **[hardik2712-ai/brain-tumor-detection-model](https://huggingface.co/hardik2712-ai/brain-tumor-detection-model)**
+        
+        You can verify the model availability by visiting the repository directly.
         """)
         return
     
@@ -573,7 +341,7 @@ def show_detection_page():
                         processed_image = preprocess_image(image_data)
                         
                         if processed_image is None:
-                            st.error("❌ Failed to preprocess image")
+                            st.error("Failed to preprocess image")
                             return
                         
                         # Make prediction
@@ -584,7 +352,7 @@ def show_detection_page():
                             if "Tumor Detected" in result or result in ["Glioma", "Meningioma", "Pituitary"]:
                                 st.markdown(f"""
                                 <div class="result-box positive-result">
-                                <h3>⚠️ Detection Result</h3>
+                                <h3>Detection Result</h3>
                                 <h4>{result}</h4>
                                 <p><strong>Confidence:</strong> {confidence:.2f}%</p>
                                 </div>
@@ -592,7 +360,7 @@ def show_detection_page():
                             else:
                                 st.markdown(f"""
                                 <div class="result-box negative-result">
-                                <h3>✅ Detection Result</h3>
+                                <h3>Detection Result</h3>
                                 <h4>{result}</h4>
                                 <p><strong>Confidence:</strong> {confidence:.2f}%</p>
                                 </div>
@@ -637,7 +405,7 @@ def show_detection_page():
                             
                             # Disclaimer
                             st.warning("""
-                            **⚠️ Medical Disclaimer:** This tool is for educational and research purposes only. 
+                            **Medical Disclaimer:** This tool is for educational and research purposes only. 
                             It should not be used as a substitute for professional medical diagnosis. 
                             Always consult with qualified healthcare professionals for medical decisions.
                             """)
@@ -648,7 +416,8 @@ def show_detection_page():
                                 'timestamp': timestamp,
                                 'result': result,
                                 'confidence': confidence,
-                                'filename': uploaded_file.name
+                                'filename': uploaded_file.name,
+                                'model_source': 'Hugging Face Hub: hardik2712-ai/brain-tumor-detection-model'
                             }
                             
                             st.download_button(
@@ -658,42 +427,43 @@ def show_detection_page():
                                 mime="text/plain"
                             )
                         else:
-                            st.error("❌ Failed to analyze image. Please try again.")
+                            st.error(" Failed to analyze image. Please try again.")
                             
                     except Exception as e:
-                        st.error(f"❌ Error during analysis: {str(e)}")
+                        st.error(f"Error during analysis: {str(e)}")
                         # Additional debugging info
                         st.error(f"Detailed error: {type(e).__name__}: {str(e)}")
 
 def show_about_page():
-    st.markdown('<h2 class="sub-header">ℹ️ About This System</h2>', unsafe_allow_html=True)
+    st.markdown('<h2 class="sub-header"> About This System</h2>', unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     
     with col1:
         st.markdown("""
-        ### 🧠 What is Brain Tumor Detection?
+        ### What is Brain Tumor Detection?
         
         Brain tumor detection is a critical medical imaging task that involves identifying abnormal 
         tissue growth in the brain using MRI scans. Early detection is crucial for effective treatment 
         and improved patient outcomes.
         
-        ### 🔬 Our Approach
+        ### Our Approach
         
         Our system uses deep learning techniques, specifically Convolutional Neural Networks (CNNs), 
         to analyze brain MRI images and detect the presence of tumors. The model has been trained on 
         a large dataset of brain MRI scans with expert annotations.
         
-        ### 📊 Model Performance
+        ### Model Performance
         
         - **Accuracy**: High accuracy on validation datasets
         - **Speed**: Fast inference time for real-time analysis
         - **Reliability**: Consistent performance across different image qualities
+        - **Hosting**: Reliable model serving via Hugging Face Hub
         """)
     
     with col2:
         st.markdown("""
-        ### 🏥 Types of Brain Tumors Detected
+        ### Types of Brain Tumors Detected
         
         Our system can identify several types of brain tumors:
         
@@ -702,23 +472,38 @@ def show_about_page():
         - **Pituitary**: Tumors in the pituitary gland
         - **No Tumor**: Normal brain tissue
         
-        ### ⚖️ Ethical Considerations
+        ### Ethical Considerations
         
         - Patient privacy and data security
         - Transparent AI decision-making
         - Complementing, not replacing, medical expertise
         - Continuous model improvement and validation
         
-        ### 🔧 Technical Stack
+        ### Technical Stack
         
         - **Framework**: TensorFlow/Keras
         - **Interface**: Streamlit
         - **Visualization**: Plotly
         - **Image Processing**: OpenCV, PIL
+        - **Model Hosting**: Hugging Face Hub
         """)
+    
+    # Add model information section
+    st.markdown("---")
+    st.markdown("""
+    ### Model Information
+    
+    **Repository**: [hardik2712-ai/brain-tumor-detection-model](https://huggingface.co/hardik2712-ai/brain-tumor-detection-model)
+    
+    **Model Details**:
+    - Hosted on Hugging Face Hub for reliable access
+    - Cached locally for faster subsequent loads
+    - Regular updates and improvements
+    - Open source and transparent
+    """)
 
 def show_statistics_page():
-    st.markdown('<h2 class="sub-header">📊 System Statistics</h2>', unsafe_allow_html=True)
+    st.markdown('<h2 class="sub-header">System Statistics</h2>', unsafe_allow_html=True)
     
     # Mock statistics - replace with actual data from your system
     col1, col2, col3, col4 = st.columns(4)
@@ -726,7 +511,7 @@ def show_statistics_page():
     with col1:
         st.markdown("""
         <div class="metric-card">
-        <h3>🔍</h3>
+        <h3> </h3>
         <h2>1,234</h2>
         <p>Images Analyzed</p>
         </div>
@@ -735,7 +520,7 @@ def show_statistics_page():
     with col2:
         st.markdown("""
         <div class="metric-card">
-        <h3>✅</h3>
+        <h3></h3>
         <h2>95.6%</h2>
         <p>Accuracy Rate</p>
         </div>
@@ -744,7 +529,7 @@ def show_statistics_page():
     with col3:
         st.markdown("""
         <div class="metric-card">
-        <h3>⚡</h3>
+        <h3></h3>
         <h2>2.3s</h2>
         <p>Avg Processing Time</p>
         </div>
@@ -753,9 +538,9 @@ def show_statistics_page():
     with col4:
         st.markdown("""
         <div class="metric-card">
-        <h3>👥</h3>
-        <h2>567</h2>
-        <p>Users Served</p>
+        <h3></h3>
+        <h2>HF Hub</h2>
+        <p>Model Source</p>
         </div>
         """, unsafe_allow_html=True)
     
@@ -786,6 +571,10 @@ def show_statistics_page():
         labels={'x': 'Month', 'y': 'Number of Analyses'}
     )
     st.plotly_chart(fig2, use_container_width=True)
+    
+    # Add model source information
+    st.markdown("---")
+    st.info(" **Model Source**: This application uses the brain tumor detection model hosted on Hugging Face Hub at `hardik2712-ai/brain-tumor-detection-model`")
 
 if __name__ == "__main__":
     main()
