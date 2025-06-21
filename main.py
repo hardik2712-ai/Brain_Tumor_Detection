@@ -11,25 +11,9 @@ import plotly.graph_objects as go
 from datetime import datetime
 import base64
 import io
-
-gdrive_url = "https://drive.google.com/file/d/1EPL1P53QVTI8qqC0oZjnJqXXghStKVBQ/view?usp=drive_link"
-
-import requests
+import gdown
+import os
 import tempfile
-from tensorflow.keras.models import load_model
-
-def gdrive_to_direct_url(gdrive_url):
-    file_id = gdrive_url.split("/d/")[1].split("/")[0]
-    return f"https://drive.google.com/uc?export=download&id={file_id}"
-
-def load_model_from_gdrive(gdrive_url):
-    direct_url = gdrive_to_direct_url(gdrive_url)
-    response = requests.get(direct_url)
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".h5") as tmp_file:
-        tmp_file.write(response.content)
-        return load_model(tmp_file.name)
-
-
 
 # Page configuration
 st.set_page_config(
@@ -116,46 +100,102 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Load model function (you'll need to modify this based on your model)
-@st.cache_resource
+# Fixed model loading function
 @st.cache_resource
 def load_brain_tumor_model():
     try:
-        gdrive_url = "https://drive.google.com/file/d/1EPL1P53QVTI8qqC0oZjnJqXXghStKVBQ/view?usp=drive_link"
-        model = load_model_from_gdrive(gdrive_url)
-        return model
+        # Google Drive file ID from your URL
+        file_id = "1EPL1P53QVTI8qqC0oZjnJqXXghStKVBQ"
+        model_path = "brain_tumor_model.h5"
+        
+        # Check if model already exists locally
+        if not os.path.exists(model_path):
+            with st.spinner("Downloading model from Google Drive... This may take a moment."):
+                # Download from Google Drive using gdown
+                url = f"https://drive.google.com/uc?id={file_id}"
+                gdown.download(url, model_path, quiet=False)
+        
+        # Load the model
+        if os.path.exists(model_path):
+            with st.spinner("Loading model..."):
+                model = load_model(model_path)
+                st.success("✅ Model loaded successfully!")
+                return model
+        else:
+            st.error("❌ Model file not found after download.")
+            return None
+            
     except Exception as e:
-        st.error(f"Error loading model: {str(e)}")
-        return None
+        st.error(f"❌ Error loading model: {str(e)}")
+        # Try alternative download method
+        try:
+            st.info("Trying alternative download method...")
+            return load_model_alternative()
+        except Exception as e2:
+            st.error(f"❌ Alternative method also failed: {str(e2)}")
+            return None
 
+# Alternative model loading method
+def load_model_alternative():
+    try:
+        import requests
+        
+        file_id = "1EPL1P53QVTI8qqC0oZjnJqXXghStKVBQ"
+        model_path = "brain_tumor_model_alt.h5"
+        
+        if not os.path.exists(model_path):
+            # Direct download URL for Google Drive
+            url = f"https://drive.google.com/uc?export=download&id={file_id}"
+            
+            with st.spinner("Downloading model (alternative method)..."):
+                response = requests.get(url, stream=True)
+                
+                if response.status_code == 200:
+                    with open(model_path, 'wb') as f:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            f.write(chunk)
+                else:
+                    raise Exception(f"Failed to download model. Status code: {response.status_code}")
+        
+        # Load the model
+        model = load_model(model_path)
+        st.success("✅ Model loaded using alternative method!")
+        return model
+        
+    except Exception as e:
+        raise Exception(f"Alternative download failed: {str(e)}")
 
 # Image preprocessing function
 def preprocess_image(img, target_size=(128, 128)):
     """
     Preprocess the image for model prediction
-    Modify this function based on your model's requirements
     """
-    if img.mode != 'RGB':
-        img = img.convert('RGB')
-    
-    img = img.resize(target_size)
-    img_array = np.array(img)
-    img_array = img_array / 255.0  # Normalize
-    img_array = np.expand_dims(img_array, axis=0)
-    
-    return img_array
+    try:
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        
+        img = img.resize(target_size)
+        img_array = np.array(img)
+        img_array = img_array / 255.0  # Normalize
+        img_array = np.expand_dims(img_array, axis=0)
+        
+        return img_array
+    except Exception as e:
+        st.error(f"Error preprocessing image: {str(e)}")
+        return None
 
 # Prediction function
 def predict_tumor(model, img_array):
     """
     Make prediction using the loaded model
-    Modify this based on your model's output format
     """
     try:
+        if model is None or img_array is None:
+            return None, None, None
+            
         prediction = model.predict(img_array)
         
-        # Assuming binary classification (tumor/no tumor)
-        # Modify this based on your model's output
+        # Check if binary or multi-class classification
         if len(prediction[0]) == 1:  # Binary classification
             confidence = float(prediction[0][0])
             if confidence > 0.5:
@@ -165,7 +205,7 @@ def predict_tumor(model, img_array):
                 result = "No Tumor Detected"
                 probability = (1 - confidence) * 100
         else:  # Multi-class classification
-            class_names = ['No Tumor', 'Glioma', 'Meningioma', 'Pituitary']  # Modify as needed
+            class_names = ['No Tumor', 'Glioma', 'Meningioma', 'Pituitary']
             predicted_class = np.argmax(prediction[0])
             result = class_names[predicted_class]
             probability = float(np.max(prediction[0]) * 100)
@@ -241,11 +281,33 @@ def show_home_page():
 def show_detection_page():
     st.markdown('<h2 class="sub-header">🔍 Brain Tumor Detection</h2>', unsafe_allow_html=True)
     
-    # Load model
+    # Load model with progress indication
+    st.info("🔄 Initializing model... Please wait.")
     model = load_brain_tumor_model()
     
     if model is None:
-        st.error("Model could not be loaded. Please check if the model file exists.")
+        st.error("""
+        ❌ **Model Loading Failed**
+        
+        This could be due to:
+        - Network connectivity issues
+        - Google Drive access restrictions
+        - Model file corruption
+        
+        **Troubleshooting:**
+        1. Check your internet connection
+        2. Try refreshing the page
+        3. Contact support if the issue persists
+        """)
+        
+        # Provide manual download option
+        st.markdown("""
+        ### Manual Setup Option:
+        If the automatic download fails, you can:
+        1. Download the model manually from: [Google Drive Link](https://drive.google.com/file/d/1EPL1P53QVTI8qqC0oZjnJqXXghStKVBQ/view?usp=drive_link)
+        2. Save it as `brain_tumor_model.h5` in your project directory
+        3. Restart the application
+        """)
         return
     
     # File uploader
@@ -261,16 +323,20 @@ def show_detection_page():
         
         with col1:
             st.subheader("Uploaded Image")
-            image_data = Image.open(uploaded_file)
-            st.image(image_data, caption="Brain MRI Scan", use_column_width=True)
-            
-            # Image info
-            st.markdown(f"""
-            **Image Details:**
-            - Format: {image_data.format}
-            - Size: {image_data.size}
-            - Mode: {image_data.mode}
-            """)
+            try:
+                image_data = Image.open(uploaded_file)
+                st.image(image_data, caption="Brain MRI Scan", use_column_width=True)
+                
+                # Image info
+                st.markdown(f"""
+                **Image Details:**
+                - Format: {image_data.format if image_data.format else 'Unknown'}
+                - Size: {image_data.size}
+                - Mode: {image_data.mode}
+                """)
+            except Exception as e:
+                st.error(f"Error loading image: {str(e)}")
+                return
         
         with col2:
             st.subheader("Analysis Results")
@@ -278,90 +344,100 @@ def show_detection_page():
             # Analyze button
             if st.button("🔬 Analyze Image", type="primary"):
                 with st.spinner("Analyzing image... Please wait."):
-                    # Preprocess image
-                    processed_image = preprocess_image(image_data)
-                    
-                    # Make prediction
-                    result, confidence, raw_prediction = predict_tumor(model, processed_image)
-                    
-                    if result is not None:
-                        # Display results
-                        if "Tumor Detected" in result or result in ["Glioma", "Meningioma", "Pituitary"]:
-                            st.markdown(f"""
-                            <div class="result-box positive-result">
-                            <h3>⚠️ Detection Result</h3>
-                            <h4>{result}</h4>
-                            <p><strong>Confidence:</strong> {confidence:.2f}%</p>
-                            </div>
-                            """, unsafe_allow_html=True)
-                        else:
-                            st.markdown(f"""
-                            <div class="result-box negative-result">
-                            <h3>✅ Detection Result</h3>
-                            <h4>{result}</h4>
-                            <p><strong>Confidence:</strong> {confidence:.2f}%</p>
-                            </div>
-                            """, unsafe_allow_html=True)
+                    try:
+                        # Preprocess image
+                        processed_image = preprocess_image(image_data)
                         
-                        # Confidence visualization
-                        if len(raw_prediction) > 1:  # Multi-class
-                            class_names = ['No Tumor', 'Glioma', 'Meningioma', 'Pituitary']
-                            probabilities = raw_prediction * 100
+                        if processed_image is None:
+                            st.error("❌ Failed to preprocess image")
+                            return
+                        
+                        # Make prediction
+                        result, confidence, raw_prediction = predict_tumor(model, processed_image)
+                        
+                        if result is not None:
+                            # Display results
+                            if "Tumor Detected" in result or result in ["Glioma", "Meningioma", "Pituitary"]:
+                                st.markdown(f"""
+                                <div class="result-box positive-result">
+                                <h3>⚠️ Detection Result</h3>
+                                <h4>{result}</h4>
+                                <p><strong>Confidence:</strong> {confidence:.2f}%</p>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            else:
+                                st.markdown(f"""
+                                <div class="result-box negative-result">
+                                <h3>✅ Detection Result</h3>
+                                <h4>{result}</h4>
+                                <p><strong>Confidence:</strong> {confidence:.2f}%</p>
+                                </div>
+                                """, unsafe_allow_html=True)
                             
-                            fig = px.bar(
-                                x=class_names,
-                                y=probabilities,
-                                title="Prediction Probabilities",
-                                labels={'x': 'Class', 'y': 'Probability (%)'},
-                                color=probabilities,
-                                color_continuous_scale='viridis'
-                            )
-                            st.plotly_chart(fig, use_container_width=True)
-                        else:  # Binary classification
-                            fig = go.Figure(go.Indicator(
-                                mode = "gauge+number",
-                                value = confidence,
-                                title = {'text': "Confidence Level"},
-                                domain = {'x': [0, 1], 'y': [0, 1]},
-                                gauge = {
-                                    'axis': {'range': [None, 100]},
-                                    'bar': {'color': "red" if confidence > 70 else "orange" if confidence > 50 else "green"},
-                                    'steps': [
-                                        {'range': [0, 50], 'color': "lightgray"},
-                                        {'range': [50, 80], 'color': "gray"},
-                                        {'range': [80, 100], 'color': "darkgray"}
-                                    ],
-                                    'threshold': {
-                                        'line': {'color': "red", 'width': 4},
-                                        'thickness': 0.75,
-                                        'value': 90
+                            # Confidence visualization
+                            if len(raw_prediction) > 1:  # Multi-class
+                                class_names = ['No Tumor', 'Glioma', 'Meningioma', 'Pituitary']
+                                probabilities = raw_prediction * 100
+                                
+                                fig = px.bar(
+                                    x=class_names,
+                                    y=probabilities,
+                                    title="Prediction Probabilities",
+                                    labels={'x': 'Class', 'y': 'Probability (%)'},
+                                    color=probabilities,
+                                    color_continuous_scale='viridis'
+                                )
+                                st.plotly_chart(fig, use_container_width=True)
+                            else:  # Binary classification
+                                fig = go.Figure(go.Indicator(
+                                    mode = "gauge+number",
+                                    value = confidence,
+                                    title = {'text': "Confidence Level"},
+                                    domain = {'x': [0, 1], 'y': [0, 1]},
+                                    gauge = {
+                                        'axis': {'range': [None, 100]},
+                                        'bar': {'color': "red" if confidence > 70 else "orange" if confidence > 50 else "green"},
+                                        'steps': [
+                                            {'range': [0, 50], 'color': "lightgray"},
+                                            {'range': [50, 80], 'color': "gray"},
+                                            {'range': [80, 100], 'color': "darkgray"}
+                                        ],
+                                        'threshold': {
+                                            'line': {'color': "red", 'width': 4},
+                                            'thickness': 0.75,
+                                            'value': 90
+                                        }
                                     }
-                                }
-                            ))
-                            st.plotly_chart(fig, use_container_width=True)
-                        
-                        # Disclaimer
-                        st.warning("""
-                        **⚠️ Medical Disclaimer:** This tool is for educational and research purposes only. 
-                        It should not be used as a substitute for professional medical diagnosis. 
-                        Always consult with qualified healthcare professionals for medical decisions.
-                        """)
-                        
-                        # Save results option
-                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                        results_data = {
-                            'timestamp': timestamp,
-                            'result': result,
-                            'confidence': confidence,
-                            'filename': uploaded_file.name
-                        }
-                        
-                        st.download_button(
-                            label="📄 Download Results",
-                            data=str(results_data),
-                            file_name=f"brain_tumor_analysis_{timestamp}.txt",
-                            mime="text/plain"
-                        )
+                                ))
+                                st.plotly_chart(fig, use_container_width=True)
+                            
+                            # Disclaimer
+                            st.warning("""
+                            **⚠️ Medical Disclaimer:** This tool is for educational and research purposes only. 
+                            It should not be used as a substitute for professional medical diagnosis. 
+                            Always consult with qualified healthcare professionals for medical decisions.
+                            """)
+                            
+                            # Save results option
+                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                            results_data = {
+                                'timestamp': timestamp,
+                                'result': result,
+                                'confidence': confidence,
+                                'filename': uploaded_file.name
+                            }
+                            
+                            st.download_button(
+                                label="📄 Download Results",
+                                data=str(results_data),
+                                file_name=f"brain_tumor_analysis_{timestamp}.txt",
+                                mime="text/plain"
+                            )
+                        else:
+                            st.error("❌ Failed to analyze image. Please try again.")
+                            
+                    except Exception as e:
+                        st.error(f"❌ Error during analysis: {str(e)}")
 
 def show_about_page():
     st.markdown('<h2 class="sub-header">ℹ️ About This System</h2>', unsafe_allow_html=True)
@@ -484,7 +560,6 @@ def show_statistics_page():
         labels={'x': 'Month', 'y': 'Number of Analyses'}
     )
     st.plotly_chart(fig2, use_container_width=True)
-    
 
 if __name__ == "__main__":
     main()
