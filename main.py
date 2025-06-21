@@ -12,6 +12,25 @@ from datetime import datetime
 import base64
 import io
 
+gdrive_url = "https://drive.google.com/file/d/1EPL1P53QVTI8qqC0oZjnJqXXghStKVBQ/view?usp=drive_link"
+
+import requests
+import tempfile
+from tensorflow.keras.models import load_model
+
+def gdrive_to_direct_url(gdrive_url):
+    file_id = gdrive_url.split("/d/")[1].split("/")[0]
+    return f"https://drive.google.com/uc?export=download&id={file_id}"
+
+def load_model_from_gdrive(gdrive_url):
+    direct_url = gdrive_to_direct_url(gdrive_url)
+    response = requests.get(direct_url)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".h5") as tmp_file:
+        tmp_file.write(response.content)
+        return load_model(tmp_file.name)
+
+
+
 # Page configuration
 st.set_page_config(
     page_title="Brain Tumor Detection System",
@@ -99,14 +118,16 @@ st.markdown("""
 
 # Load model function (you'll need to modify this based on your model)
 @st.cache_resource
+@st.cache_resource
 def load_brain_tumor_model():
     try:
-        # Replace 'your_model.h5' with your actual model file path
-        model = load_model('brain_tumor_model.h5')
+        gdrive_url = "https://drive.google.com/file/d/1EPL1P53QVTI8qqC0oZjnJqXXghStKVBQ/view?usp=drive_link"
+        model = load_model_from_gdrive(gdrive_url)
         return model
     except Exception as e:
         st.error(f"Error loading model: {str(e)}")
         return None
+
 
 # Image preprocessing function
 def preprocess_image(img, target_size=(128, 128)):
@@ -463,6 +484,7 @@ def show_statistics_page():
         labels={'x': 'Month', 'y': 'Number of Analyses'}
     )
     st.plotly_chart(fig2, use_container_width=True)
+    
 
 if __name__ == "__main__":
     main()
