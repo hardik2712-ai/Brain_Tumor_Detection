@@ -11,9 +11,18 @@ import plotly.graph_objects as go
 from datetime import datetime
 import base64
 import io
-import gdown
 import os
 import tempfile
+import requests
+import time
+
+# Only import gdown if available
+try:
+    import gdown
+    GDOWN_AVAILABLE = True
+except ImportError:
+    GDOWN_AVAILABLE = False
+    st.warning("⚠️ gdown module not available. Using alternative download method.")
 
 # Page configuration
 st.set_page_config(
@@ -100,76 +109,119 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Fixed model loading function
+def download_file_from_google_drive(file_id, destination):
+    """Download file from Google Drive with multiple fallback methods"""
+    
+    # Method 1: Using gdown (if available)
+    if GDOWN_AVAILABLE:
+        try:
+            url = f"https://drive.google.com/uc?id={file_id}"
+            gdown.download(url, destination, quiet=False)
+            if os.path.exists(destination):
+                return True
+        except Exception as e:
+            st.warning(f"gdown method failed: {str(e)}")
+    
+    # Method 2: Direct download using requests
+    try:
+        url = f"https://drive.google.com/uc?export=download&id={file_id}"
+        
+        with requests.Session() as session:
+            response = session.get(url, stream=True)
+            
+            # Handle Google Drive's virus scan warning
+            if 'download_warning' in response.text:
+                # Extract the confirm token
+                for line in response.text.split('\n'):
+                    if 'confirm=' in line:
+                        confirm_token = line.split('confirm=')[1].split('&')[0]
+                        break
+                else:
+                    confirm_token = None
+                
+                if confirm_token:
+                    url = f"https://drive.google.com/uc?export=download&confirm={confirm_token}&id={file_id}"
+                    response = session.get(url, stream=True)
+            
+            if response.status_code == 200:
+                with open(destination, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                return True
+            else:
+                st.error(f"HTTP Error: {response.status_code}")
+                return False
+                
+    except Exception as e:
+        st.error(f"Direct download failed: {str(e)}")
+        return False
+    
+    return False
+
+# Enhanced model loading function
 @st.cache_resource
 def load_brain_tumor_model():
+    """Load the brain tumor detection model with multiple fallback methods"""
+    
+    file_id = "1EPL1P53QVTI8qqC0oZjnJqXXghStKVBQ"
+    model_path = "brain_tumor_model.h5"
+    
     try:
-        # Google Drive file ID from your URL
-        file_id = "1EPL1P53QVTI8qqC0oZjnJqXXghStKVBQ"
-        model_path = "brain_tumor_model.h5"
-        
         # Check if model already exists locally
-        if not os.path.exists(model_path):
-            with st.spinner("Downloading model from Google Drive... This may take a moment."):
-                # Download from Google Drive using gdown
-                url = f"https://drive.google.com/uc?id={file_id}"
-                gdown.download(url, model_path, quiet=False)
-        
-        # Load the model
         if os.path.exists(model_path):
-            with st.spinner("Loading model..."):
-                model = load_model(model_path)
-                st.success("✅ Model loaded successfully!")
-                return model
+            st.info("📂 Found existing model file. Loading...")
+            model = load_model(model_path)
+            st.success("✅ Model loaded successfully!")
+            return model
+        
+        # Download the model
+        st.info("⬇️ Downloading model from Google Drive...")
+        progress_bar = st.progress(0)
+        
+        # Update progress bar
+        for i in range(30):
+            time.sleep(0.1)
+            progress_bar.progress((i + 1) / 100)
+        
+        download_success = download_file_from_google_drive(file_id, model_path)
+        
+        if download_success and os.path.exists(model_path):
+            progress_bar.progress(70)
+            st.info("🔄 Loading downloaded model...")
+            
+            # Verify file size (should be > 1MB for a valid model)
+            file_size = os.path.getsize(model_path)
+            if file_size < 1024 * 1024:  # Less than 1MB
+                st.error("❌ Downloaded file appears to be corrupted (too small)")
+                os.remove(model_path)
+                return None
+            
+            model = load_model(model_path)
+            progress_bar.progress(100)
+            st.success(f"✅ Model loaded successfully! (Size: {file_size / (1024*1024):.1f} MB)")
+            return model
         else:
-            st.error("❌ Model file not found after download.")
+            st.error("❌ Failed to download model file")
             return None
             
     except Exception as e:
         st.error(f"❌ Error loading model: {str(e)}")
-        # Try alternative download method
-        try:
-            st.info("Trying alternative download method...")
-            return load_model_alternative()
-        except Exception as e2:
-            st.error(f"❌ Alternative method also failed: {str(e2)}")
-            return None
-
-# Alternative model loading method
-def load_model_alternative():
-    try:
-        import requests
         
-        file_id = "1EPL1P53QVTI8qqC0oZjnJqXXghStKVBQ"
-        model_path = "brain_tumor_model_alt.h5"
+        # Provide helpful debugging information
+        st.error(f"""
+        **Debugging Information:**
+        - Current working directory: {os.getcwd()}
+        - Files in directory: {os.listdir('.')}
+        - Model path exists: {os.path.exists(model_path)}
+        - gdown available: {GDOWN_AVAILABLE}
+        """)
         
-        if not os.path.exists(model_path):
-            # Direct download URL for Google Drive
-            url = f"https://drive.google.com/uc?export=download&id={file_id}"
-            
-            with st.spinner("Downloading model (alternative method)..."):
-                response = requests.get(url, stream=True)
-                
-                if response.status_code == 200:
-                    with open(model_path, 'wb') as f:
-                        for chunk in response.iter_content(chunk_size=8192):
-                            f.write(chunk)
-                else:
-                    raise Exception(f"Failed to download model. Status code: {response.status_code}")
-        
-        # Load the model
-        model = load_model(model_path)
-        st.success("✅ Model loaded using alternative method!")
-        return model
-        
-    except Exception as e:
-        raise Exception(f"Alternative download failed: {str(e)}")
+        return None
 
 # Image preprocessing function
 def preprocess_image(img, target_size=(128, 128)):
-    """
-    Preprocess the image for model prediction
-    """
+    """Preprocess the image for model prediction"""
     try:
         if img.mode != 'RGB':
             img = img.convert('RGB')
@@ -186,9 +238,7 @@ def preprocess_image(img, target_size=(128, 128)):
 
 # Prediction function
 def predict_tumor(model, img_array):
-    """
-    Make prediction using the loaded model
-    """
+    """Make prediction using the loaded model"""
     try:
         if model is None or img_array is None:
             return None, None, None
@@ -293,11 +343,13 @@ def show_detection_page():
         - Network connectivity issues
         - Google Drive access restrictions
         - Model file corruption
+        - Insufficient permissions
         
         **Troubleshooting:**
         1. Check your internet connection
         2. Try refreshing the page
-        3. Contact support if the issue persists
+        3. Ensure the Google Drive file is publicly accessible
+        4. Contact support if the issue persists
         """)
         
         # Provide manual download option
@@ -333,6 +385,7 @@ def show_detection_page():
                 - Format: {image_data.format if image_data.format else 'Unknown'}
                 - Size: {image_data.size}
                 - Mode: {image_data.mode}
+                - File Size: {len(uploaded_file.getvalue()) / 1024:.1f} KB
                 """)
             except Exception as e:
                 st.error(f"Error loading image: {str(e)}")
@@ -438,6 +491,8 @@ def show_detection_page():
                             
                     except Exception as e:
                         st.error(f"❌ Error during analysis: {str(e)}")
+                        # Additional debugging info
+                        st.error(f"Detailed error: {type(e).__name__}: {str(e)}")
 
 def show_about_page():
     st.markdown('<h2 class="sub-header">ℹ️ About This System</h2>', unsafe_allow_html=True)
