@@ -54,7 +54,7 @@ def load_model_from_huggingface():
 #         model_path = "brain_tumor_model.h5"
         
 #         if not os.path.exists(model_path):
-#             st.info("⬇️ Downloading model from GitHub...")
+#             st.info("Downloading model from GitHub...")
 #             response = requests.get(github_url, stream=True)
             
 #             if response.status_code == 200:
@@ -66,11 +66,11 @@ def load_model_from_huggingface():
 #                 raise Exception(f"Failed to download: HTTP {response.status_code}")
         
 #         model = load_model(model_path)
-#         st.success("✅ Model loaded from GitHub!")
+#         st.success(" Model loaded from GitHub!")
 #         return model
         
 #     except Exception as e:
-#         st.error(f"❌ Error loading from GitHub: {str(e)}")
+#         st.error(f"Error loading from GitHub: {str(e)}")
 #         return None
 
 # # Alternative Solution 3: Using Dropbox
@@ -96,11 +96,11 @@ def load_model_from_huggingface():
 #                 raise Exception(f"Failed to download: HTTP {response.status_code}")
         
 #         model = load_model(model_path)
-#         st.success("✅ Model loaded from Dropbox!")
+#         st.success(" Model loaded from Dropbox!")
 #         return model
         
 #     except Exception as e:
-#         st.error(f"❌ Error loading from Dropbox: {str(e)}")
+#         st.error(f" Error loading from Dropbox: {str(e)}")
 #         return None
 
 # # Alternative Solution 4: Fix Google Drive sharing settings
