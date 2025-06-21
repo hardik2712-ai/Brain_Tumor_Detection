@@ -16,6 +16,141 @@ import tempfile
 import requests
 import time
 
+
+
+# Alternative Solution 1: Using Hugging Face Hub (Recommended)
+# First, upload your model to Hugging Face Hub.
+
+from huggingface_hub import hf_hub_download
+import os
+
+@st.cache_resource
+def load_model_from_huggingface():
+    """Load model from Hugging Face Hub - More reliable than Google Drive"""
+    try:
+        # Replace with your actual Hugging Face model repository
+        # Example: "your-username/brain-tumor-model"
+        model_path = hf_hub_download(
+            repo_id="hardik2712-ai/brain-tumor-detection-model",
+            filename="brain_tumor_model.h5",
+            cache_dir="./model_cache"
+        )
+        
+        model = load_model(model_path)
+        st.success("✅ Model loaded from Hugging Face!")
+        return model
+        
+    except Exception as e:
+        st.error(f"❌ Error loading from Hugging Face: {str(e)}")
+        return None
+
+# Alternative Solution 2: Using GitHub Releases
+# @st.cache_resource
+# def load_model_from_github():
+#     """Load model from GitHub releases"""
+#     try:
+#         # Replace with your GitHub repository and release info
+#         github_url = "https://github.com/YOUR_USERNAME/YOUR_REPO/releases/download/v1.0/brain_tumor_model.h5"
+#         model_path = "brain_tumor_model.h5"
+        
+#         if not os.path.exists(model_path):
+#             st.info("⬇️ Downloading model from GitHub...")
+#             response = requests.get(github_url, stream=True)
+            
+#             if response.status_code == 200:
+#                 with open(model_path, 'wb') as f:
+#                     for chunk in response.iter_content(chunk_size=8192):
+#                         if chunk:
+#                             f.write(chunk)
+#             else:
+#                 raise Exception(f"Failed to download: HTTP {response.status_code}")
+        
+#         model = load_model(model_path)
+#         st.success("✅ Model loaded from GitHub!")
+#         return model
+        
+#     except Exception as e:
+#         st.error(f"❌ Error loading from GitHub: {str(e)}")
+#         return None
+
+# # Alternative Solution 3: Using Dropbox
+# @st.cache_resource
+# def load_model_from_dropbox():
+#     """Load model from Dropbox direct link"""
+#     try:
+#         # Replace with your Dropbox direct link
+#         # Make sure to use the direct download link (dl=1 parameter)
+#         dropbox_url = "https://www.dropbox.com/s/YOUR_FILE_ID/brain_tumor_model.h5?dl=1"
+#         model_path = "brain_tumor_model.h5"
+        
+#         if not os.path.exists(model_path):
+#             st.info("⬇️ Downloading model from Dropbox...")
+#             response = requests.get(dropbox_url, stream=True)
+            
+#             if response.status_code == 200:
+#                 with open(model_path, 'wb') as f:
+#                     for chunk in response.iter_content(chunk_size=8192):
+#                         if chunk:
+#                             f.write(chunk)
+#             else:
+#                 raise Exception(f"Failed to download: HTTP {response.status_code}")
+        
+#         model = load_model(model_path)
+#         st.success("✅ Model loaded from Dropbox!")
+#         return model
+        
+#     except Exception as e:
+#         st.error(f"❌ Error loading from Dropbox: {str(e)}")
+#         return None
+
+# # Alternative Solution 4: Fix Google Drive sharing settings
+# def fix_google_drive_download(file_id, destination):
+#     """
+#     Enhanced Google Drive download with proper sharing link handling
+    
+#     IMPORTANT: Make sure your Google Drive file sharing is set to:
+#     1. Anyone with the link can view
+#     2. No restrictions
+#     """
+    
+#     def download_file_from_google_drive_fixed(id, destination):
+#         def get_confirm_token(response):
+#             for key, value in response.cookies.items():
+#                 if key.startswith('download_warning'):
+#                     return value
+#             return None
+
+#         def save_response_content(response, destination):
+#             CHUNK_SIZE = 32768
+#             with open(destination, "wb") as f:
+#                 for chunk in response.iter_content(CHUNK_SIZE):
+#                     if chunk:
+#                         f.write(chunk)
+
+#         URL = "https://docs.google.com/uc?export=download"
+        
+#         session = requests.Session()
+#         response = session.get(URL, params={'id': id}, stream=True)
+#         token = get_confirm_token(response)
+
+#         if token:
+#             params = {'id': id, 'confirm': token}
+#             response = session.get(URL, params=params, stream=True)
+
+#         save_response_content(response, destination)
+#         return os.path.exists(destination) and os.path.getsize(destination) > 1024*1024
+
+#     try:
+#         success = download_file_from_google_drive_fixed(file_id, destination)
+#         return success
+#     except Exception as e:
+#         st.error(f"Google Drive download error: {str(e)}")
+#         return False
+
+
+
+
+
 # Only import gdown if available
 try:
     import gdown
@@ -110,52 +245,88 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 def download_file_from_google_drive(file_id, destination):
-    """Download file from Google Drive with multiple fallback methods"""
+    """Download file from Google Drive with enhanced error handling"""
     
-    # Method 1: Using gdown (if available)
+    def get_confirm_token(response):
+        """Extract confirmation token from Google Drive response"""
+        for key, value in response.cookies.items():
+            if key.startswith('download_warning'):
+                return value
+        return None
+    
+    def save_response_content(response, destination):
+        """Save streaming response content to file"""
+        CHUNK_SIZE = 32768
+        with open(destination, "wb") as f:
+            for chunk in response.iter_content(CHUNK_SIZE):
+                if chunk:
+                    f.write(chunk)
+    
+    # Method 1: Using gdown with fuzzy parameter
     if GDOWN_AVAILABLE:
         try:
-            url = f"https://drive.google.com/uc?id={file_id}"
-            gdown.download(url, destination, quiet=False)
-            if os.path.exists(destination):
+            st.info("🔄 Attempting download with gdown...")
+            # Use fuzzy parameter to handle large files
+            gdown.download(f"https://drive.google.com/uc?id={file_id}", 
+                          destination, quiet=False, fuzzy=True)
+            if os.path.exists(destination) and os.path.getsize(destination) > 1024*1024:
+                st.success("✅ Downloaded successfully with gdown!")
                 return True
         except Exception as e:
             st.warning(f"gdown method failed: {str(e)}")
+            if os.path.exists(destination):
+                os.remove(destination)
     
-    # Method 2: Direct download using requests
+    # Method 2: Enhanced requests method with session handling
     try:
-        url = f"https://drive.google.com/uc?export=download&id={file_id}"
+        st.info("🔄 Attempting download with requests...")
+        URL = "https://docs.google.com/uc?export=download"
         
-        with requests.Session() as session:
-            response = session.get(url, stream=True)
+        session = requests.Session()
+        
+        response = session.get(URL, params={'id': file_id}, stream=True)
+        token = get_confirm_token(response)
+        
+        if token:
+            params = {'id': file_id, 'confirm': token}
+            response = session.get(URL, params=params, stream=True)
+        
+        # Check if response is HTML (error page) or binary (actual file)
+        content_type = response.headers.get('content-type', '')
+        if 'text/html' in content_type:
+            # Try alternative URL format
+            st.info("🔄 Trying alternative download URL...")
+            alt_url = f"https://drive.google.com/u/0/uc?id={file_id}&export=download&confirm=t"
+            response = session.get(alt_url, stream=True)
+        
+        if response.status_code == 200:
+            save_response_content(response, destination)
             
-            # Handle Google Drive's virus scan warning
-            if 'download_warning' in response.text:
-                # Extract the confirm token
-                for line in response.text.split('\n'):
-                    if 'confirm=' in line:
-                        confirm_token = line.split('confirm=')[1].split('&')[0]
-                        break
+            # Verify the downloaded file
+            if os.path.exists(destination):
+                file_size = os.path.getsize(destination)
+                st.info(f"📁 Downloaded file size: {file_size / (1024*1024):.2f} MB")
+                
+                if file_size > 1024*1024:  # At least 1MB
+                    # Check if it's not an HTML error page
+                    with open(destination, 'rb') as f:
+                        first_bytes = f.read(100)
+                        if b'<html' not in first_bytes.lower() and b'<!doctype' not in first_bytes.lower():
+                            st.success("✅ File downloaded and verified!")
+                            return True
+                        else:
+                            st.error("❌ Downloaded file is HTML (error page)")
+                            os.remove(destination)
                 else:
-                    confirm_token = None
-                
-                if confirm_token:
-                    url = f"https://drive.google.com/uc?export=download&confirm={confirm_token}&id={file_id}"
-                    response = session.get(url, stream=True)
+                    st.error(f"❌ Downloaded file too small ({file_size} bytes)")
+                    os.remove(destination)
+        else:
+            st.error(f"❌ HTTP Error: {response.status_code}")
             
-            if response.status_code == 200:
-                with open(destination, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if chunk:
-                            f.write(chunk)
-                return True
-            else:
-                st.error(f"HTTP Error: {response.status_code}")
-                return False
-                
     except Exception as e:
-        st.error(f"Direct download failed: {str(e)}")
-        return False
+        st.error(f"❌ Enhanced download failed: {str(e)}")
+        if os.path.exists(destination):
+            os.remove(destination)
     
     return False
 
